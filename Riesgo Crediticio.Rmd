@@ -1,0 +1,192 @@
+---
+title: "Riesgo Crediticio."
+author: "Ricardo Rodriguez Ovilla"
+date: "17 de diciembre de 2020"
+output:
+  github_document:
+    pandoc_args: --webtex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(magrittr)
+library(purrr)
+library(gmodels)
+library(ggpubr)
+library(ggplot2)
+library(randomForest)
+library(caret)
+library(C50)
+library(ranger)
+library(e1071)
+```
+
+```{r include=FALSE}
+Credit <- read.csv("C:\\Users\\barre\\OneDrive\\Escritorio\\Proyecto Intermedio\\GermanCreditTrain.csv")
+```
+
+# Pre-Procesamiento de Datos
+
+En esta parte trato los datos que posiblemente sean faltantes, ya que varios de los algoritmos que usamos no estan diseñados para tratar con datos faltantes en todo caso presento funciones para imputar datos y para reemplazar datos Na por variables categoricas. 
+
+```{r}
+na_rate <- function(x) {x %>% is.na() %>% sum() / length(x)}
+sapply(Credit, na_rate)
+```
+
+Ahora procedemos a recodificar las variables con sus respectivos tipos de variables pues todas han sido codificadas como numericas. 
+Empezare por las binarias. Esta funcion usa 
+
+
+```{r}
+# Binarias 
+red = function(dataf){
+  df = as.matrix(dataf)
+  ## Vector
+  drop = c()
+  ###
+  reemplazo = dataf
+ for (i in 1:ncol(dataf)) {
+   if(nrow(unique(dataf[c(i)]))==2){
+     
+     dataf[c(i)] = factor(df[,i])
+     reemplazo[c(i)] = dataf[c(i)]
+   }else{
+      drop = append(drop,i)
+      reemplazo[c(i)] = dataf[c(i)]
+   }
+ }
+  reemplazo = reemplazo[-drop]
+  return(reemplazo)
+ 
+}
+```
+
+Y ahora en este caso podemos ver que las variables binarias ya tiene sus respectivos niveles ahora vamos a tratar con las variables categoricas, estas variables contienen un número finito de categorías o grupos distintos. Los datos categóricos pueden no tener un orden lógico. Por lo que he decidido declararlas como caracteres pero sin perder la idea de otorgarles sus distintos niveles. 
+
+```{r}
+## Actualizamos el Data frame
+Cred = red(Credit)
+str(Cred)
+```
+Lo que sigue en esta parte es hacer que las variables que tienen mas de 2 factores tengan sus respectivos niveles, esto se hizo pues posiblemente las variables numericas puedan ser afectadas y 
+
+```{r}
+### Demas factores 
+fac = function(dataf){
+  df = as.matrix(dataf)
+  reemplazo = dataf
+   ## Vector que almacenara mis indices que no uso en la
+  # construccion de los demas factores. 
+  drop = c()
+  ### Construimos los factores que poseen mas de dos niveles. 
+   for (i in 1:ncol(dataf)) {
+   if(nrow(unique(dataf[c(i)]))>2 & max(dataf[c(i)])< 5 ){
+     le = as.character(df[,i])
+    dataf[c(i)] = factor(df[,i])
+    reemplazo[c(i)] = dataf[c(i)]
+   }else{
+     drop = append(drop,i)
+     reemplazo[c(i)] = dataf[c(i)]
+   }
+    
+ }
+  reemplazo = reemplazo[-drop]
+  return(reemplazo)
+}
+```
+
+Despues lo que sigue es actualizar el data frame con las variables que hemos codificado. Aun no hemos trabajado las variables numericas.
+
+```{r}
+## Actualizamos el Data frame
+Cred_2 = fac(Credit)
+str(Cred_2)
+```
+Para las variables numericas como se intentaran ajustar a multiples algoritmos las reescalamos, mas adelante se hablara de porque se hizo esta normalizacion. 
+
+```{r}
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+```
+
+```{r}
+## Unimos los Dataframe
+d = cbind(Cred,Cred_2)
+a = colnames(d)
+b = colnames(Credit)
+num = Credit[setdiff(b,a)]
+num_n<- as.data.frame(lapply(num, normalize))
+da = cbind(d,num_n)
+dat_l = cbind(Cred,num)
+```
+
+En este caso ya podemos observar que los datos fueron recodificados correctamente. 
+
+```{r}
+glimpse(da)
+```
+
+# Importancia de las variables 
+
+Una manera de reducirt el costo computacional dentro del ajuste de los modelos que tomaremos en cuenta es reducion el numero de variables en el conjunto de datos pues algunas de ellas pueden llegar a no ser significativas para los algoritmos. 
+
+El método que se usó para identificar dichas variables fue por Random Forest de la siguiente manera;
+
+1.	Crear el conjunto de datos que forman el modelo. 
+
+2.	Calcular una determinada métrica de error (mse, classification error, …). Este es el valor de referencia (error).
+3.	Para cada predictor j:
+
+a)	Permutar en todos los árboles del modelo los valores del predictor j manteniendo el resto constante.
+b)	Recalcular la métrica tras la permutación.
+c)  Calcular el incremento en la métrica debido a la permutación del predictor j. 
+
+Si el predictor permutado estaba contribuyendo al modelo, es de esperar que el modelo aumente su error, ya que se pierde la información que proporcionaba esa variable. El porcentaje en que se incrementa el error debido a la permutación del predictor j puede interpretarse como la influencia que tiene j sobre el modelo. Algo que suele llevar a confusiones es el hecho de que este incremento puede resultar negativo. Si la variable no contribuye al modelo, es posible que, al reorganizarla aleatoriamente, solo por azar, se consiga mejorar ligeramente el modelo, por lo que (errorj−error0) es negativo. A modo general, se puede considerar que estas variables tienen una importancia próxima a cero.
+Observación: 
+Aunque esta estrategia suele ser la más recomendada, cabe tomar algunas precauciones en su interpretación. Lo que cuantifican es la influencia que tienen los predictores sobre el modelo, no su relación con la variable respuesta. 
+
+Es decir, si por ejemplo se emplea esta estrategia con la finalidad de identificar qué predictores están relacionados con el peso de una persona, y que dos de los predictores son: el índice de masa corporal (IMC) y la altura. Como IMC y altura están muy correlacionados entre sí (la información que aportan es redundante), cuando se permute uno de ellos, el impacto en el modelo será mínimo, ya que el otro aporta la misma información. Como resultado, estos predictores aparecerán como poco influyentes aun cuando realmente están muy relacionados con la variable respuesta.
+
+```{r fig.align='center'}
+datos_rf <- map_if(.x = da, .p = is.character, .f = as.factor) %>%
+            as.data.frame()
+modelo_randforest <- randomForest(formula = RESPONSE ~ . ,
+                                  data = na.omit(datos_rf),
+                                  mtry = 5,
+                                  importance = TRUE, 
+                                  ntree = 1000) 
+importancia <- as.data.frame(modelo_randforest$importance)
+importancia <- rownames_to_column(importancia,var = "variable")
+
+p1 <- ggplot(data = importancia, aes(x = reorder(variable, MeanDecreaseAccuracy),
+                               y = MeanDecreaseAccuracy,
+                               fill = MeanDecreaseAccuracy)) +
+      labs(x = "variable", title = "Reducción de Accuracy") +
+      geom_col() +
+      coord_flip() +
+      theme_bw() +
+      theme(legend.position = "bottom")
+p2 <- ggplot(data = importancia, aes(x = reorder(variable, MeanDecreaseGini),
+                               y = MeanDecreaseGini,
+                               fill = MeanDecreaseGini)) +
+      labs(x = "variable", title = "Reducción de pureza (Gini)") +
+      geom_col() +
+      coord_flip() +
+      theme_bw() +
+      theme(legend.position = "bottom")
+ggarrange(p1, p2)
+```
+
+
+
+
+
+
+
+
+
