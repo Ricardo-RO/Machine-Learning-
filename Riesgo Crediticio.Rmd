@@ -1,10 +1,8 @@
 ---
-title: "Riesgo Crediticio."
+title: "Riesgo Crediticio"
 author: "Ricardo Rodriguez Ovilla"
 date: "17 de diciembre de 2020"
-output:
-  github_document:
-    pandoc_args: --webtex
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -31,7 +29,7 @@ Credit <- read.csv("C:\\Users\\barre\\OneDrive\\Escritorio\\Proyecto Intermedio\
 
 # Pre-Procesamiento de Datos
 
-En esta parte trato los datos que posiblemente sean faltantes, ya que varios de los algoritmos que usamos no estan diseñados para tratar con datos faltantes en todo caso presento funciones para imputar datos y para reemplazar datos Na por variables categoricas. 
+En esta parte trato los datos que posiblemente sean faltantes, ya que varios de los algoritmos que usamos no estan diseÃ±ados para tratar con datos faltantes en todo caso presento funciones para imputar datos y para reemplazar datos Na por variables categoricas. 
 
 ```{r}
 na_rate <- function(x) {x %>% is.na() %>% sum() / length(x)}
@@ -39,16 +37,15 @@ sapply(Credit, na_rate)
 ```
 
 Ahora procedemos a recodificar las variables con sus respectivos tipos de variables pues todas han sido codificadas como numericas. 
-Empezare por las binarias. Esta funcion usa 
+Empezare por las binarias. Esta funcion usa el data frame y solo trabaja con las variables que tienen do valores $0,1$. 
 
 
-```{r}
+```{r include=FALSE}
 # Binarias 
 red = function(dataf){
   df = as.matrix(dataf)
-  ## Vector
+  ## Vector de indices 
   drop = c()
-  ###
   reemplazo = dataf
  for (i in 1:ncol(dataf)) {
    if(nrow(unique(dataf[c(i)]))==2){
@@ -66,16 +63,16 @@ red = function(dataf){
 }
 ```
 
-Y ahora en este caso podemos ver que las variables binarias ya tiene sus respectivos niveles ahora vamos a tratar con las variables categoricas, estas variables contienen un número finito de categorías o grupos distintos. Los datos categóricos pueden no tener un orden lógico. Por lo que he decidido declararlas como caracteres pero sin perder la idea de otorgarles sus distintos niveles. 
+Y ahora en este caso podemos ver que las variables binarias ya tiene sus respectivos niveles ahora vamos a tratar con las variables categoricas, estas variables contienen un numero finito de categorias o grupos distintos. Los datos categoricos pueden no tener un orden logico. Por lo que he decidido declararlas como caracteres pero sin perder la idea de otorgarles sus distintos niveles. 
 
 ```{r}
 ## Actualizamos el Data frame
 Cred = red(Credit)
 str(Cred)
 ```
-Lo que sigue en esta parte es hacer que las variables que tienen mas de 2 factores tengan sus respectivos niveles, esto se hizo pues posiblemente las variables numericas puedan ser afectadas y 
+Lo que sigue en esta parte es hacer que las variables que tienen mas de 2 factores tengan sus respectivos niveles, esto se hizo pues posiblemente las variables numericas puedan ser afectadas. 
 
-```{r}
+```{r include=FALSE}
 ### Demas factores 
 fac = function(dataf){
   df = as.matrix(dataf)
@@ -114,7 +111,7 @@ normalize <- function(x) {
 return ((x - min(x)) / (max(x) - min(x))) }
 ```
 
-```{r}
+```{r include=FALSE}
 ## Unimos los Dataframe
 d = cbind(Cred,Cred_2)
 a = colnames(d)
@@ -135,16 +132,19 @@ glimpse(da)
 
 Una manera de reducirt el costo computacional dentro del ajuste de los modelos que tomaremos en cuenta es reducion el numero de variables en el conjunto de datos pues algunas de ellas pueden llegar a no ser significativas para los algoritmos. 
 
-El método que se usó para identificar dichas variables fue por Random Forest de la siguiente manera;
+El método que se usó para identificar dichas variables fue por Random Forest de la siguiente manera:
 
 1.	Crear el conjunto de datos que forman el modelo. 
 
 2.	Calcular una determinada métrica de error (mse, classification error, …). Este es el valor de referencia (error).
+
 3.	Para cada predictor j:
 
 a)	Permutar en todos los árboles del modelo los valores del predictor j manteniendo el resto constante.
+
 b)	Recalcular la métrica tras la permutación.
-c)  Calcular el incremento en la métrica debido a la permutación del predictor j. 
+
+c)	Calcular el incremento en la métrica debido a la permutación del predictor j. 
 
 Si el predictor permutado estaba contribuyendo al modelo, es de esperar que el modelo aumente su error, ya que se pierde la información que proporcionaba esa variable. El porcentaje en que se incrementa el error debido a la permutación del predictor j puede interpretarse como la influencia que tiene j sobre el modelo. Algo que suele llevar a confusiones es el hecho de que este incremento puede resultar negativo. Si la variable no contribuye al modelo, es posible que, al reorganizarla aleatoriamente, solo por azar, se consiga mejorar ligeramente el modelo, por lo que (errorj−error0) es negativo. A modo general, se puede considerar que estas variables tienen una importancia próxima a cero.
 Observación: 
@@ -152,7 +152,8 @@ Aunque esta estrategia suele ser la más recomendada, cabe tomar algunas precauc
 
 Es decir, si por ejemplo se emplea esta estrategia con la finalidad de identificar qué predictores están relacionados con el peso de una persona, y que dos de los predictores son: el índice de masa corporal (IMC) y la altura. Como IMC y altura están muy correlacionados entre sí (la información que aportan es redundante), cuando se permute uno de ellos, el impacto en el modelo será mínimo, ya que el otro aporta la misma información. Como resultado, estos predictores aparecerán como poco influyentes aun cuando realmente están muy relacionados con la variable respuesta.
 
-```{r fig.align='center'}
+
+```{r echo=FALSE, fig.align='center'}
 datos_rf <- map_if(.x = da, .p = is.character, .f = as.factor) %>%
             as.data.frame()
 modelo_randforest <- randomForest(formula = RESPONSE ~ . ,
@@ -183,7 +184,571 @@ ggarrange(p1, p2)
 ```
 
 
+# Analisis Descriptivo.
 
+## Distribucion de la variable respuesta. 
+
+Empezare analizando la distribución de la variable respuesta para así analizar la presencia de buenos pagadores y malos pagadores en el conjunto de datos. 
+Para que un modelo predictivo sea útil, debe de tener un porcentaje de acierto superior a lo esperado por azar o a un determinado nivel basal. En problemas de clasificación, el nivel basal es el que se obtiene si se asignan todas las observaciones a la clase mayoritaria (la moda).Para este caso el nivel a superar es 70%. 
+Este es el porcentaje mínimo que hay que intentar superar con los modelos predictivos. (Siendo estrictos, este porcentaje tendrá que ser recalculado únicamente con el conjunto de entrenamiento)
+
+```{r echo=FALSE, fig.align='center'}
+ggplot(data = dat_l, aes(x =RESPONSE, y = ..count.., fill =RESPONSE)) +
+  geom_bar() +
+  scale_fill_manual(values = c("mediumpurple3", "orangered2")) +
+  labs(title = "Credit rating",subtitle = "0:270  1:630") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+Podemos notar que hay una presencia mayor de calificación crediticia buena pues en la grafica el numero 1, identificado con color naranja, posee 630 observaciones del total en el set de datos. Mientas que una mala calificación crediticia, 0, es representada por el color morado teniendo una presencia de 270 datos del total de datos. 
+
+## Distribución de las variables continuas
+
+### Edad 
+
+La edad fue dividida según la variable respuesta, ya que el objetivo del estudio es predecir la calificación crediticia, el análisis de cada variable se hace en relación con la variable respuesta RESPONSE. Analizando los datos de esta forma, se pueden empezar a extraer ideas sobre qué variables están más relacionadas con la supervivencia
+
+```{r echo=FALSE, fig.align='center'}
+p1 <- ggplot(data = dat_l, aes(x = AGE, fill = RESPONSE)) +
+      geom_density(alpha = 0.5) +
+      scale_fill_manual(values = c("mediumpurple3", "orangered2")) +
+      geom_rug(aes(color = RESPONSE), alpha = 0.5) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+p2 <- ggplot(data = dat_l, aes(x = RESPONSE, y = AGE, color = RESPONSE)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(alpha = 0.3, width = 0.15) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+final_plot <- ggarrange(p1, p2, legend = "top")
+final_plot <- annotate_figure(final_plot, top = text_grob("Age", size = 15))
+final_plot
+```
+
+De la grafica podemos extraer que la distribución de edad en base a RESPONSE parecen ser similar además de tener rangos Inter cuantiles parecidos, para comprobar esto hacemos los cálculos numéricos. 
+
+```{r echo=FALSE}
+dat_l %>% filter(!is.na(AGE)) %>% group_by(RESPONSE) %>%
+          summarise(media = mean(AGE),
+                    mediana = median(AGE),
+                    min = min(AGE),
+                    max = max(AGE))
+```
+
+Es decir, el anterior código nos indica que la edad tiene la misma distribución según la variable respuesta.
+
+### Cantidad 
+
+De la grafica podemos ver que los rangos Inter cuantiles para la distribución de la cantidad, AMOUNT, tiene la misma distribución pues haciendo los cálculos de manera exacta estos no difieren en gran medida. 
+
+```{r echo=FALSE, fig.align='center'}
+p1 <- ggplot(data = dat_l, aes(x = log(AMOUNT), fill = RESPONSE)) +
+      geom_density(alpha = 0.5) +
+      scale_fill_manual(values = c("mediumpurple3", "orangered2")) +
+      geom_rug(aes(color = RESPONSE), alpha = 0.5) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+p2 <- ggplot(data = dat_l, aes(x = RESPONSE, y = log(AMOUNT), color = RESPONSE)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(alpha = 0.3, width = 0.15) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+final_plot <- ggarrange(p1, p2, legend = "top")
+final_plot <- annotate_figure(final_plot, top = text_grob("AMOUNT", size = 15))
+final_plot
+
+```
+
+```{r echo=FALSE}
+dat_l %>% filter(!is.na(AMOUNT)) %>% group_by(RESPONSE) %>%
+          summarise(media = mean(log(AMOUNT)),
+                    mediana = median(log(AMOUNT)),
+                    min = min(log(AMOUNT)),
+                    max = max(log(AMOUNT)))
+```
+
+
+### Duration 
+
+En este caso podemos ver que si existe una marcada diferencia en la duración de los créditos pues los buenos pagadores tienden a optar por préstamos a menor duración además de que los rangos Inter cuantiles de estos mismos están muy juntos, lo que se interpreta que estos toman prestamos con una duración entre 19 y 60 meses. 
+
+```{r echo=FALSE, fig.align='center'}
+p1 <- ggplot(data = dat_l, aes(x = DURATION, fill = RESPONSE)) +
+      geom_density(alpha = 0.5) +
+      scale_fill_manual(values = c("mediumpurple3", "orangered2")) +
+      geom_rug(aes(color = RESPONSE), alpha = 0.5) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+p2 <- ggplot(data = dat_l, aes(x = RESPONSE, y = DURATION, color = RESPONSE)) +
+      geom_boxplot(outlier.shape = NA) +
+      geom_jitter(alpha = 0.3, width = 0.15) +
+      scale_color_manual(values = c("mediumpurple3", "orangered2")) +
+      theme_bw()
+final_plot <- ggarrange(p1, p2, legend = "top")
+final_plot <- annotate_figure(final_plot, top = text_grob("DURATION", size = 15))
+final_plot
+```
+
+```{r echo=FALSE}
+dat_l %>% filter(!is.na(DURATION)) %>% group_by(RESPONSE) %>%
+          summarise(media = mean(DURATION),
+                    mediana = median(DURATION),
+                    min = min(DURATION),
+                    max = max(DURATION))
+
+```
+
+## Variables no numéricas
+
+Se analizaron las variables categóricas y binarias con relación a la variable respuesta, podemos notar que los buenos pagadores tienen mejor representación en el set de datos pues en todas las graficas que hice estos tienen menor porcentaje a comparación de los malos pagadores, cabe resaltar que Sav Acct e History presentan menores cantidades de observaciones. 
+
+En History los niveles 0,1,3 no tienen grandes cantidades pues la mayoría de las observaciones se concentran en los niveles 2 y 4, es decir en los créditos existentes se amortizaron debidamente hasta ahora y cuenta crítica.
+
+En Sav Acct la mayoría de las personas que piden créditos tienen el rasgo distintivo de tener la mayoría de las observaciones en el nivel 0, es decir el Saldo medio en cuenta de ahorros se mantiene la mayoría de las veces menores a 100 DM. 
+
+Para Chk Acct la Comprobando el estado de la cuenta tiene menor presencia en el nivel 2, es decir mayores a 200 DM:
+Employment , Posee una mayor presencia en el nivel 2, es decir el tiempo actual en el empleo entre 1 y 3 años y menor presencia en desempleados. 
+
+
+```{r echo=FALSE, fig.align='center'}
+a_1 = ggplot(data = da, aes(x = EMPLOYMENT, y = ..count.., fill = RESPONSE)) +
+      geom_bar() +
+      scale_fill_manual(values = c("magenta3", "cyan3")) +
+      labs(title = "Employment") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+a_2 = ggplot(data = da, aes(x = SAV_ACCT, y = ..count.., fill = RESPONSE)) +
+      geom_bar() +
+      scale_fill_manual(values = c("magenta3", "cyan3")) +
+      labs(title = "Sav Acct") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+a_3 = ggplot(data = da, aes(x = HISTORY, y = ..count.., fill = RESPONSE)) +
+      geom_bar() +
+      scale_fill_manual(values = c("magenta3", "cyan3")) +
+      labs(title = "History") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+a_4 = ggplot(data = da, aes(x = CHK_ACCT, y = ..count.., fill = RESPONSE)) +
+      geom_bar() +
+      scale_fill_manual(values = c("magenta3", "cyan3")) +
+      labs(title = "Chk. Acct.") +
+      theme_bw() +
+      theme(legend.position = "bottom")
+ggarrange(a_1,a_2,a_3,a_4)
+
+```
+
+
+# Correlación de las variables numéricas
+
+Si dos variables numéricas están muy correlacionadas, añaden información redundante al modelo, por lo tanto, no conviene incorporar ambas. O también podríamos combinarlas para recoger toda su información en una única nueva variable, por ejemplo, con un PCA.
+
+### Cantidad y edad. 
+
+El diagrama Amount y Age de dispersión tampoco apunta a ningún tipo de relación no lineal evidente. Las variables no contienen información redundante.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+c = cor.test(x = dat_l$AGE, y = dat_l$AMOUNT, method = "pearson")
+ggplot(data = dat_l, aes(x = AGE, y = AMOUNT)) +
+  geom_point(color = "gray30") +
+  geom_smooth(color = "firebrick") +
+   labs(subtitle = paste("Correlación Person ", c$estimate,sep = "="),
+        title = "Amount vs Age") + 
+  theme_bw()
+
+```
+
+
+### Duracion y Edad
+
+El diagrama Duration y Age de dispersión tampoco apunta a ningún tipo de relación no lineal evidente. Las variables no contienen información redundante.
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+c = cor.test(x = dat_l$AGE, y = dat_l$DURATION, method = "pearson")
+ggplot(data = dat_l, aes(x = AGE, y = DURATION)) +
+  geom_point(color = "gray30") +
+  geom_smooth(color = "firebrick") +
+   labs(subtitle = paste("Correlación Person", c$estimate,sep = "="),
+        title = "Duration vs Age") + 
+  theme_bw()
+```
+
+
+### Duración y Cantidad 
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+c = cor.test(x = dat_l$AMOUNT, y = dat_l$DURATION, method = "pearson")
+ggplot(data = dat_l, aes(x = AMOUNT, y = DURATION)) +
+  geom_point(color = "gray30") +
+  geom_smooth(color = "firebrick") +
+   labs(subtitle = paste("Correlación Person", c$estimate,sep = "="),
+        title = "Duration vs Age") + 
+  theme_bw()
+```
+
+# Modelos Predictivos. 
+
+Creamos los conjuntos de entrenamiento y de validacion de la siguiente forma:
+
+
+```{r}
+set.seed(7)
+df_train = da %>%
+  group_by(RESPONSE) %>%
+  sample_frac(0.65) %>%
+  ungroup()
+df_test <- dplyr::setdiff(da, df_train) 
+```
+
+
+## KNN
+
+Según Lantz, k-NN es un algoritmo que "usa información sobre los k vecinos más cercanos de un ejemplo para clasificar ejemplos sin etiquetar". La letra k es un término variable que implica que podría usarse cualquier número de vecinos más cercanos. 
+
+Después de elegir k, el algoritmo requiere un conjunto de datos de entrenamiento compuesto por ejemplos que se han clasificado en varias categorías, etiquetadas por una variable nominal. Luego, para cada registro sin etiquetar en el conjunto de datos de prueba, k-NN identifica k registros en los datos de entrenamiento que son los "más cercanos" en similitud.
+
+El uso de un valor grande para k puede hacer que la clasificación de datos ignore el ruido recopilado en los datos, por lo que su elección se basó en k -fold Cross validation la validación divide los datos en k subconjuntos y el algoritmo k-NN. Cada vez, uno de los subconjuntos se mantiene y se utiliza como conjunto de entrenamiento. En este método, todos los datos se utilizan como un conjunto de entrenamiento k-1 veces.
+
+### Modificación de la escala de los datos
+
+Es importante tener en cuenta que las características de un conjunto de datos pueden tener rangos muy diferentes en comparación con otras características. Si la fórmula de distancia se aplicó a entidades no modificadas, existe la posibilidad de que las entidades con rangos más grandes dominen o enmascaren las entidades con rangos más pequeños.
+
+Es por eso por lo que use el método tradicional para el escalado de características utilizado en la clasificación k-NN el cual es normalización mínima-máxima.
+Este método escala todos los valores dentro de una característica de manera que caigan entre 0 y 1, y la ecuación que representa este método se da como:
+
+$$ X = \frac{x-min(x)}{max(x)-min(x)} $$
+Para este caso aplique la normalización a los datos con la siguiente formula.
+
+```{r}
+# Particion y repeticion
+particiones  <- 10
+repeticiones <- 5
+
+# Optimizacion del parámetro k
+hiperparametros <- data.frame(k = c(1, 2, 5, 10, 15, 20, 30, 50,100))
+
+set.seed(123)
+seeds <- vector(mode = "list", length = (particiones * repeticiones) + 1)
+for (i in 1:(particiones * repeticiones)) {
+  seeds[[i]] <- sample.int(1000, nrow(hiperparametros)) 
+}
+seeds[[(particiones * repeticiones) + 1]] <- sample.int(1000, 1)
+
+# Modo de entranamiento y numero de repeticiones. 
+control_train <- trainControl(method = "repeatedcv", number = particiones,
+                              repeats = repeticiones, seeds = seeds,
+                              returnResamp = "final", verboseIter = FALSE,
+                              allowParallel = TRUE)
+
+# Modelo KNN 
+set.seed(342)
+modelo_knn <- train(RESPONSE ~  
+                     HISTORY+AGE + CHK_ACCT+SAV_ACCT
+                    +DURATION,
+                    data = df_train,
+                    method = "knn",
+                    tuneGrid = hiperparametros,
+                    metric = "Accuracy",
+                    trControl = control_train)
+modelo_knn
+
+```
+
+La evolución de la precisión de los modelos se aprecia en la siguiente gráfica, una de las cosas que podemos ver es que después de k = 5, la precisión comienza a disminuir, por lo que no tendríamos dudas acerca de si usar un K mayor al elegido, pues este empeoraría el modelo. 
+
+```{r}
+ggplot(modelo_knn, highlight = TRUE) +
+  scale_x_continuous(breaks = hiperparametros$k) +
+  labs(title = "Evolución del accuracy del modelo KNN", x = "K") +
+  theme_bw()
+```
+
+Para el conjunto de validación podemos observar que la precisión no fue penalizada y no se redujo, además de estar por encima del benchmark, lo cual nos habla de un modelo apropiado para la clasificación. 
+
+Recordemos que la clase positiva 0 indica que calificación crediticia es no es buena, por lo que este algoritmo estaría fallando al identificar los malos pagadores debido a que posee un Sensitivity pequeño, esto es debido a la prevalence caso que se explicara en caso de tener que elegir este modelo como el mejor. 
+
+La especificidad se calcula como el número de predicciones negativas correctas dividido por el número total de negativas. Y en este caso es alta siendo capaz el modelo de clasificar mejor a los buenos pagadores que en este sentido nos gustaría identificar quienes tengan una mala calificación crediticia. 
+
+
+```{r}
+knn_t <- predict(modelo_knn,newdata = df_test )
+confusionMatrix(knn_t,df_test$RESPONSE)
+```
+
+
+## LDA 
+
+El análisis discriminante lineal es un modelo de aprendizaje supervisado que es similar a la regresión logística en que la variable de resultado es categórica y, por lo tanto, se puede utilizar para la clasificación.
+
+LDA estima la probabilidad de que una observación, dado un determinado valor de los predictores, pertenezca a cada una de las clases de la variable cualitativa.
+
+Algunas consideraciones en caso de que este modelo sea útil para la predicción son los siguientes:
+
+1. Cada predictor que forma parte del modelo se distribuye de forma normal en cada una de las clases de la variable respuesta. En el caso de múltiples predictores, las observaciones siguen una distribución normal multivariante en todas las clases.
+
+2. La varianza del predictor es igual en todas las clases de la variable respuesta. En el caso de múltiples predictores, la matriz de covarianza es igual en todas las clases. Si esto no se cumple se recurre a Análisis Discriminante Cuadrático (QDA).
+
+En la cual podemos ver que los predictores numéricos Duration y Age tiene casi la misma varianza de todos modos se comparara con QLA. Si la condición de normalidad no se llegase a cumplir eso solo nos daría perdida de precisión pero aún puede ser útil para la precisión. 
+
+
+```{r}
+# Inicializacion de los parametros. 
+particiones  <- 10
+repeticiones <- 5
+
+# Hiperparámetros
+hiperparametros <- data.frame(parameter = "none")
+
+set.seed(123)
+seeds <- vector(mode = "list", length = (particiones * repeticiones) + 1)
+for (i in 1:(particiones * repeticiones)) {
+  seeds[[i]] <- sample.int(1000, nrow(hiperparametros))
+}
+seeds[[(particiones * repeticiones) + 1]] <- sample.int(1000, 1)
+
+# Modo de entrenamiento. 
+control_train <- trainControl(method = "repeatedcv", number = particiones,
+                              repeats = repeticiones, seeds = seeds,
+                              returnResamp = "final", verboseIter = FALSE,
+                              allowParallel = TRUE)
+## Modelo. 
+set.seed(342)
+modelo_lda <- train(RESPONSE ~  
+                     HISTORY+AGE + CHK_ACCT+SAV_ACCT
+                    +DURATION, 
+                    data = df_train,
+                    method = "lda",
+                    tuneGrid = hiperparametros,
+                    metric = "Accuracy",
+                    trControl = control_train)
+modelo_lda
+
+```
+
+La precisión esta vez es de 73% con una kappa 0.28. Usando la matriz de confusión para evaluar este modelo obtengo los siguientes resultados. Donde la precisión para ser buena al usar los datos de validación. Ahora lo que sigue es relajar la hipotesis de que cada clase K tiene su propia matriz de covarianza. 
+
+```{r}
+modlo_lda <- predict(modelo_lda,newdata = df_test )
+confusionMatrix(modlo_lda,df_test$RESPONSE)
+
+```
+
+## QDA 
+
+Para el análisis de discriminante cuadrático sigo trabajando las mismas modificaciones a la base de datos y usando la misma metodología para el CV usada en el análisis del discrimínate lineal. 
+En este caso la precisión queda en 72% y una kappa equivalente al 0.34
+
+```{r}
+# Hiperparámetros
+hiperparametros <- data.frame(parameter = "none")
+
+set.seed(123)
+seeds <- vector(mode = "list", length = (particiones * repeticiones) + 1)
+for (i in 1:(particiones * repeticiones)) {
+  seeds[[i]] <- sample.int(1000, nrow(hiperparametros))
+}
+seeds[[(particiones * repeticiones) + 1]] <- sample.int(1000, 1)
+
+#  ENTRENAMIENTO
+control_train <- trainControl(method = "repeatedcv", number = particiones,
+                              repeats = repeticiones, seeds = seeds,
+                              returnResamp = "final", verboseIter = FALSE,
+                              allowParallel = TRUE)
+
+# AJUSTE 
+set.seed(342)
+modelo_qda <- train(RESPONSE ~  
+                     HISTORY+AGE + CHK_ACCT+SAV_ACCT
+                    +DURATION, 
+                    data = df_train,
+                    method = "qda",
+                    tuneGrid = hiperparametros,
+                    metric = "Accuracy",
+                    trControl = control_train)
+modelo_qda
+
+```
+Usando la matriz de confusión obtengo los siguientes resultados, donde podemos ver que la precisión es mayor al benchmark además de aumentar la Sensitivity y tenener la Specificity a un buen nivel por lo que hasta ahora parece ser el modelo para tener en cuenta para los modelos finales.
+Incluso QDA tiene cierta robustez frente a la falta de normalidad multivariante, pero es importante tenerlo en cuenta en la conclusión del análisis.
+
+```{r}
+modlo_qda <- predict(modelo_qda,newdata = df_test )
+confusionMatrix(modlo_qda,df_test$RESPONSE)
+
+```
+
+## SVM 
+
+El método de clasificación-regresión Máquinas de Vector Soporte (Vector Support Machines, SVMs) fue desarrollado en la década de los 90, dentro de campo de la ciencia computacional. 
+
+En este caso probé con varios kernels ya que no puede decirse que haya un kernel que supere al resto, depende en gran medida de la naturaleza del problema que se esté tratando y el que me pareció adecuado fue el Kernel de función de base radial. Este posee dos hiperparametros que serán encontrados usando CV, dichos parámetros son:
+
+* Sigma: coeficiente del kernel radial.
+* C: Penalización por violaciones del margen del hiperplano. 
+
+```{r}
+particiones  <- 10
+repeticiones <- 5
+# Hiperparámetros
+hiperparametros <- expand.grid(sigma = c(0.001, 0.01, 0.1, 0.5, 1),
+                               C = c(1 , 20, 50, 100, 200, 500, 700))
+set.seed(123)
+seeds <- vector(mode = "list", length = (particiones * repeticiones) + 1)
+for (i in 1:(particiones * repeticiones)) {
+  seeds[[i]] <- sample.int(1000, nrow(hiperparametros))
+}
+seeds[[(particiones * repeticiones) + 1]] <- sample.int(1000, 1)
+control_train <- trainControl(method = "repeatedcv", number = particiones,
+                              repeats = repeticiones, seeds = seeds,
+                              returnResamp = "final", verboseIter = FALSE,
+                              allowParallel = TRUE)
+set.seed(342)
+modelo_svmrad <- train(RESPONSE ~ 
+                     HISTORY+AGE + CHK_ACCT+SAV_ACCT
+                    +DURATION,
+                   data = df_train,
+                   method = "svmRadial",
+                   tuneGrid = hiperparametros,
+                   metric = "Accuracy",
+                   trControl = control_train)
+
+```
+
+Teniendo como resultado que la precisión optima en el modelo se alcanza con sigma = 0.001 y C = 500. En la siguiente grafica vemos el proceso que siguió el algoritmo para encontrar los parámetros en este modelo.
+
+```{r fig.align='center'}
+ggplot(modelo_svmrad, highlight = TRUE) +
+  labs(title = "Evolución del accuracy del modelo SVM Radial") +
+  theme_bw()
+```
+
+Usando el conjunto de validación podemos notar que la precisión de este modelo llega a ser muy buena pues supera al NIR, además de tener una Specificity alta careciendo en la métrica Sensitivity. 
+
+```{r}
+sv <- predict(modelo_svmrad,newdata = df_test )
+confusionMatrix(sv,df_test$RESPONSE)
+```
+
+## Bosque Aleatorio 
+
+El algoritmo de Random Forest es una modificación del proceso de bagging que consigue mejorar los resultados gracias a que decorrelaciona aún más los árboles generados en el proceso.
+
+Un modelo Random Forest está formado por un conjunto (ensemble) de árboles de decisión individuales, cada uno entrenado con una muestra aleatoria extraída de los datos de entrenamiento originales mediante bootstrapping. Esto implica que cada árbol se entrena con unos datos ligeramente distintos. En cada árbol individual, las observaciones se van distribuyendo por bifurcaciones (nodos) generando la estructura del árbol hasta alcanzar un nodo terminal.
+
+La predicción de una nueva observación se obtiene agregando las predicciones de todos los árboles individuales que forman el modelo.
+En este caso la optimización de los parámetros fue calculados con la paquetería ranger pues este algoritmo posee 3 hiperparametros:
+
+1. 	Min.node.size: Tamaño mínimo que tiene que tener un nodo para poder ser dividido.
+
+2.	Mtry: numero de predictores seleccionados aleatoriamente en cada árbol.
+
+3. 	Splitrule: criterio de división. 
+
+```{r}
+particiones  <- 10
+repeticiones <- 5
+
+# Hiperparámetros
+hiperparametros <- expand.grid(mtry = c(3, 4, 5, 7),
+                               min.node.size = c(2, 3, 4, 5, 10, 15, 20, 30),
+                               splitrule = "gini")
+
+set.seed(123)
+seeds <- vector(mode = "list", length = (particiones * repeticiones) + 1)
+for (i in 1:(particiones * repeticiones)) {
+  seeds[[i]] <- sample.int(1000, nrow(hiperparametros))
+}
+seeds[[(particiones * repeticiones) + 1]] <- sample.int(1000, 1)
+
+# Modo de entrenamiento
+control_train <- trainControl(method = "repeatedcv", number = particiones,
+                              repeats = repeticiones, seeds = seeds,
+                              returnResamp = "final", verboseIter = FALSE,
+                              allowParallel = TRUE)
+
+# Random forest. 
+set.seed(342)
+modelo_rf <- train(RESPONSE ~ 
+                     HISTORY+AGE + CHK_ACCT+SAV_ACCT
+                    +DURATION,
+                   data = df_train,
+                   method = "ranger",
+                   tuneGrid = hiperparametros,
+                   metric = "Accuracy",
+                   trControl = control_train,
+                   # Número de árboles ajustados
+                   num.trees = 300)
+
+```
+
+Una cosa relevante dentro de la evolución de la precisión es que podemos ver que mtry no se optimizo en el extremo lo que nos diría que no requiere mas iteraciones para buscar el punto óptimo. Podemos ver como al alcanzar su mtr = 3 este comienza a decrecer. 
+
+Dentro de la matriz de confusión podemos notar que la precisión alcanza un 76% además de poseer un buen nivel para la Specificity y sensitivity a pesar de no poseer una prevalencia alta.
+
+
+```{r fig.align='center'}
+ggplot(modelo_rf, highlight = TRUE) +
+  scale_x_continuous(breaks = 1:30) +
+  labs(title = "Evolución del accuracy del modelo Random Forest") +
+  guides(color = guide_legend(title = "mtry"),
+         shape = guide_legend(title = "mtry")) +
+  theme_bw()
+```
+
+Una cosa relevante dentro de la evolución de la precisión es que podemos ver que mtry no se optimizo en el extremo lo que nos diría que no requiere mas iteraciones para buscar el punto óptimo. Podemos ver como al alcanzar su mtr = 3 este comienza a decrecer. 
+
+Dentro de la matriz de confusión podemos notar que la precisión alcanza un 76% además de poseer un buen nivel para la Specificity y sensitivity a pesar de no poseer una prevalencia alta.
+
+```{r}
+rfPredict <- predict(modelo_rf,newdata = df_test )
+confusionMatrix(rfPredict,df_test$RESPONSE)
+```
+
+
+## Red Neuronal
+
+El método emplea la función nnet() para crear redes neuronales con una capa oculta. Este algoritmo posee dos hiperparámetros:
+
+1. Size: numero de neuronas en la capa oculta.
+
+2. Decay: Controla la regularización durante el entrenamiento de la red. 
+
+```{r}
+set.seed(857)
+nnetGrid <- expand.grid(decay = c(0, 0.001, 0.01, .1, .5),
+                        size = (1:10)*2 - 1)
+ctrl <- trainControl(method="repeatedcv",repeats = 3)
+nnetFit <- train(RESPONSE ~ 
+                 DURATION + HISTORY+AGE + CHK_ACCT+SAV_ACCT, 
+                 data=df_train,
+                 method = "nnet",
+                 maximize = T,
+                 tuneGrid = nnetGrid,
+                 trace = FALSE,
+                 MaxNWts = 2000,
+                 maxit = 100,
+                 preProc = c("center", "scale"),
+                 trControl = ctrl)
+
+```
+
+Se utilizó la precisión para seleccionar el modelo óptimo utilizando el valor más grande. Los valores finales usados para el modelo fueron tamaño = 3 y decaimiento = 0.5. La evolución de la precisión se puede apreciar en el siguiente gráfico. 
+
+```{r fig.align='center'}
+ggplot(nnetFit, highlight = TRUE) +
+  labs(title = "Evolución del accuracy del modelo NNET") +
+  theme_bw()
+```
+
+Dentro del conjunto de validación obtenemos los siguientes valores:
+
+
+```{r}
+pred.nee = predict(nnetFit, df_test)
+confusionMatrix(pred.nee,df_test$RESPONSE)
+```
 
 
 
